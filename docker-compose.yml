@@ -1,5 +1,18 @@
 version: '3.7'
 services:
+
+  manticore:
+    image: manticoresearch/manticore:latest
+    container_name: ${NAMESPACE}-manticore
+    ports:
+    - 9306:9306
+    - 9312:9312
+    volumes:
+    - ./.config/manticore/manticore.conf:/etc/sphinxsearch/sphinx.conf
+    - manticore-data:/var/lib/manticore/data
+    networks:
+    - internal
+    restart: unless-stopped
  
   onionscan:
     image: x0rzkov/onionscan:latest
@@ -185,9 +198,10 @@ services:
     command: ["./tor-spider", "-b", "/dist/blacklist.txt"]
 
 volumes:
+  db-data:
   mongo-data:
   mongo-backup:
-  db-data:
+  manticore-data:
 
 networks:
   internal:

@@ -26,6 +26,10 @@ import (
 	"github.com/samirettali/tor-spider/pkg/articletext"
 )
 
+/*
+	Phobos, Tor66 and Tordex
+*/
+
 // Job is a struct that represents a job
 type Job struct {
 	URL string
@@ -41,6 +45,7 @@ type PageInfo struct {
 	Body           string       `gorm:"type:longtext; CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci" sql:"type:longtext"`
 	Text           string       `gorm:"type:longtext; CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci" sql:"type:longtext"`
 	Title          string       `gorm:"type:longtext; CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci" sql:"type:longtext"`
+	Domain         string       `gorm:"index:domain"`
 	IsHomePage     bool         `gorm:"index:home_page"`
 	Status         int          `gorm:"index:status"`
 	Language       string       `gorm:"index:language"`
