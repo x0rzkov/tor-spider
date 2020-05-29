@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"flag"
 	"os"
+	"fmt"
 
 	"github.com/gocolly/redisstorage"
 	log "github.com/sirupsen/logrus"
@@ -51,14 +52,16 @@ func main() {
 	if !ok {
 		log.Fatal("You must set REDIS_URI env variable")
 	}
-
+	
+	fmt.Println("REDIS_URI", redisURI)
+	
 	visitedStorage := &redisstorage.Storage{
 		Address:  redisURI,
 		Password: "",
 		DB:       0,
 		Prefix:   "0",
 	}
-	defer visitedStorage.Client.Close()
+	// defer visitedStorage.Client.Close()
 
 	// Elastic for page saving
 	elasticURI, ok := os.LookupEnv("ELASTIC_URI")
