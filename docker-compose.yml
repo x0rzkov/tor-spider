@@ -1,5 +1,12 @@
 version: '3.7'
 services:
+ 
+  onionscan:
+    image: x0rzkov/onionscan:latest
+    container_name: ${NAMESPACE}-onionscan
+    build:
+      context: .docker/onionscan
+      dockerfile: Dockerfile
 
   mysql:
     image: mysql:5.7
