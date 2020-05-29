@@ -1,10 +1,66 @@
 version: '3.7'
 services:
 
+  mysql:
+    image: mysql:5.7
+    container_name: ${NAMESPACE}-db
+    ports:
+    - 3314:3306
+    volumes:
+    - ./.config/mysql/tor.cnf:/etc/mysql/conf.d/my.cnf
+    - db-data:/var/lib/mysql
+    networks:
+    - internal
+    - web
+    environment:
+      MYSQL_DATABASE: ${TOR_MYSQL_DATABASE}
+      MYSQL_PASSWORD: ${TOR_MYSQL_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${TOR_MYSQL_ROOT_PASSWORD}
+      MYSQL_USER: ${TOR_MYSQL_USER}
+    restart: unless-stopped
+
+  backup:
+    image: zeenlym/mariadb-backup
+    container_name: ${NAMESPACE}-backup
+    depends_on:
+    - mysql
+    restart: unless-stopped
+    links:
+    - mysql:mysql
+    networks:
+    - internal
+    environment:
+    - TIMEZONE=${TIME_ZONE}
+    - SCHEDULE=0 0 0 3 *
+    - BACKUP_METHOD=mysqldump
+    - MYSQL_HOST=mysql
+    - MYSQL_DATABASE=${TOR_MYSQL_DATABASE}
+    - MYSQL_USER=${TOR_MYSQL_USER}
+    - MYSQL_PASSWORD=${TOR_MYSQL_PASSWORD}
+    volumes:
+    - ./shard/backup:/backup
+    restart: unless-stopped
+
   redis:
     image: redis
     ports:
     - 6379:6379
+    networks:
+    - internal
+    - web
+
+  redis-commander:
+    container_name: redis-commander
+    hostname: redis-commander
+    image: rediscommander/redis-commander:latest
+    restart: always
+    environment:
+    - REDIS_HOSTS=local:redis:6379
+    ports:
+    - "8081:8081"
+    networks:
+    - internal
+    - web
 
   elasticsearch:
     image: docker.elastic.co/elasticsearch/elasticsearch:7.6.1
@@ -18,6 +74,9 @@ services:
         hard: -1
     ports:
       - 9200:9200
+    networks:
+    - internal
+    - web
 
   kibana:
     image: docker.elastic.co/kibana/kibana:7.6.1
@@ -25,6 +84,9 @@ services:
       - 5601:5601
     depends_on:
       - elasticsearch
+    networks:
+    - internal
+    - web
 
   mongo:
     image: webhippie/mongodb:latest
@@ -90,13 +152,21 @@ services:
 
   spider:
     image: tor-spider
+    build:
+      context: .
+      dockerfile: Dockerfile
     depends_on:
     #  - tor
       - redis
       - elasticsearch
       - mongo
+    volumes:
+    - ./blacklist.txt:/dist/blacklist.txt
     ports:
     - 8888:8888
+    networks:
+    - internal
+    - web
     environment:
     - REDIS_URI=${REDIS_URI}
     - ELASTIC_URI=${ELASTIC_URI}
@@ -105,10 +175,12 @@ services:
     - MONGO_URI=${MONGO_URI}
     - MONGO_DB=${MONGO_DB}
     - MONGO_COL=${MONGO_COL}
+    command: ["./tor-spider", "-b", "/dist/blacklist.txt"]
 
 volumes:
   mongo-data:
   mongo-backup:
+  db-data:
 
 networks:
   internal:

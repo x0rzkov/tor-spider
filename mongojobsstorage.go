@@ -16,9 +16,8 @@ type MongoJobsStorage struct {
 	CollectionName string
 	Logger         *log.Logger
 	URI            string
-
-	jobs       chan Job
-	collection *mongo.Collection
+	jobs           chan Job
+	collection     *mongo.Collection
 }
 
 // Init initializes the collection
@@ -28,15 +27,16 @@ func (s *MongoJobsStorage) Init() error {
 		var client *mongo.Client
 		var err error
 		if client, err = mongo.NewClient(options.Client().ApplyURI(s.URI)); err != nil {
+			log.Warnln("mongo.NewClient", err)
 			return err
 		}
 		if err = client.Connect(context.Background()); err != nil {
+			log.Warnln("client.Connect", err)
 			return err
 		}
 		db := client.Database(s.DatabaseName)
 		s.collection = db.Collection(s.CollectionName)
 	}
-
 	return nil
 }
 

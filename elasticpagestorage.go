@@ -19,9 +19,8 @@ type ElasticPageStorage struct {
 	Index      string
 	BufferSize int
 	Logger     *log.Logger
-
-	pages  chan PageInfo
-	client *elasticsearch.Client
+	pages      chan PageInfo
+	client     *elasticsearch.Client
 }
 
 // Init initializes the connection to elastic search

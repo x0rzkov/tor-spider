@@ -3,36 +3,28 @@ package main
 import (
 	"bufio"
 	"flag"
-	"os"
 	"fmt"
+	"os"
 
-	"github.com/k0kubun/pp"
 	"github.com/gocolly/redisstorage"
+	"github.com/jinzhu/gorm"
+	_ "github.com/jinzhu/gorm/dialects/mysql"
+	"github.com/k0kubun/pp"
+	_ "github.com/mattn/go-sqlite3"
+	"github.com/qor/media"
+	"github.com/qor/validations"
 	log "github.com/sirupsen/logrus"
 )
 
-func readLines(path string) ([]string, error) {
-	file, err := os.Open(path)
-	if err != nil {
-		return nil, err
-	}
-	defer file.Close()
-
-	var lines []string
-	scanner := bufio.NewScanner(file)
-	for scanner.Scan() {
-		lines = append(lines, scanner.Text())
-	}
-	return lines, scanner.Err()
-}
-
 func main() {
 	blacklistFile := flag.String("b", "", "blacklist file")
-	depth := flag.Int("d", 2, "depth of each collector")
+	depth := flag.Int("d", 10, "depth of each collector")
 	verbose := flag.Bool("v", false, "verbose")
 	debug := flag.Bool("x", false, "debug")
 	numWorkers := flag.Int("w", 32, "number of workers")
 	parallelism := flag.Int("p", 4, "parallelism of workers")
+	oniontree := flag.Bool("o", false, "import oniontree")
+
 	flag.Parse()
 
 	logger := log.New()
@@ -46,6 +38,25 @@ func main() {
 	} else if *verbose {
 		logger.SetLevel(log.InfoLevel)
 	}
+
+	// Setting up RDBMS
+	db, err := gorm.Open("mysql", fmt.Sprintf("%v:%v@tcp(%v:%v)/%v?charset=utf8mb4,utf8&parseTime=True", os.Getenv("TOR_MYSQL_USER"), os.Getenv("TOR_MYSQL_PASSWORD"), os.Getenv("TOR_MYSQL_HOST"), os.Getenv("TOR_MYSQL_PORT"), os.Getenv("TOR_MYSQL_DATABASE")))
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer db.Close()
+
+	// callback for images and validation
+	validations.RegisterCallbacks(db)
+	media.RegisterCallbacks(db)
+
+	// migrate tables
+	db.AutoMigrate(&PageInfo{})
+	db.AutoMigrate(&PageTopic{})
+	db.AutoMigrate(&Tag{})
+	db.AutoMigrate(&Service{})
+	db.AutoMigrate(&URL{})
+	db.AutoMigrate(&PublicKey{})
 
 	// Setting up storage
 	// Redis for visited pages
@@ -99,6 +110,7 @@ func main() {
 		CollectionName: mongoCol,
 		Logger:         logger,
 	}
+	pp.Println("jobsStorage", jobsStorage)
 
 	proxyURI, ok := os.LookupEnv("PROXY_URI")
 	if !ok {
@@ -106,6 +118,7 @@ func main() {
 	}
 
 	spider := &Spider{
+		rdbms:       db,
 		storage:     visitedStorage,
 		jobsStorage: jobsStorage,
 		pageStorage: pageStorage,
@@ -126,10 +139,29 @@ func main() {
 		spider.blacklist = blacklist
 	}
 
-	err := spider.Init()
+	if *oniontree {
+		spider.importOnionTree("./shared/dataset/oniontree/tagged")
+	}
+
+	err = spider.Init()
 	if err != nil {
 		log.Fatalf("Spider ended with %v", err)
 	}
 
 	spider.Start()
+}
+
+func readLines(path string) ([]string, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+
+	var lines []string
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		lines = append(lines, scanner.Text())
+	}
+	return lines, scanner.Err()
 }
