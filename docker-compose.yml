@@ -27,9 +27,47 @@ services:
       - elasticsearch
 
   mongo:
-    image: mongo
+    image: webhippie/mongodb:latest
+    container_name: ${NAMESPACE}-mongodb
+    restart: always
     ports:
     - 27017:27017
+    - 28017:28017
+    - 27019:27019
+    volumes:
+    - mongo-data:/var/lib/mongodb/db
+    - mongo-backup:/var/lib/backup
+    networks:
+    - internal
+    environment:
+    - MONGODB_AUTH=${MONGODB_AUTH}
+    - MONGODB_AUTH_DB=${MONGODB_AUTH_DB}
+    - MONGODB_DATABASE=${MONGODB_DATABASE}
+    - MONGODB_DBPATH=${MONGODB_DBPATH}
+    - MONGODB_PASSWORD=${MONGODB_PASSWORD}
+    - MONGODB_REST=${MONGODB_REST}
+    - MONGODB_ROOT_PASSWORD=${MONGODB_ROOT_PASSWORD}
+    - MONGODB_ROOT_USERNAME=${MONGODB_ROOT_USERNAME}
+    - MONGODB_USERNAME=${MONGODB_USERNAME}
+    - MONGODB_VERBOSE=${MONGODB_VERBOSE}
+
+  mongoexpress:
+    restart: always
+    image: mongo-express
+    container_name: ${NAMESPACE}-mongoexpress
+    links:
+    - mongo:mongo
+    environment:
+    - VCAP_APP_PORT=8090
+    - ME_CONFIG_MONGODB_AUTH_USERNAME=""
+    - ME_CONFIG_MONGODB_AUTH_PASSWORD=""
+    depends_on:
+    - mongo
+    ports:
+    - 8090:8090
+    networks:
+    - internal
+    - web
 
   tor:
     restart: always
@@ -42,9 +80,9 @@ services:
     - privoxy=1
     - privoxy_port=8119
     - tors=75
-    #networks:
-    #- internal
-    #- web
+    networks:
+    - internal
+    - web
     ports:
     - 5566:5566
     - 2090:2090
@@ -67,3 +105,12 @@ services:
     - MONGO_URI=${MONGO_URI}
     - MONGO_DB=${MONGO_DB}
     - MONGO_COL=${MONGO_COL}
+
+volumes:
+  mongo-data:
+  mongo-backup:
+
+networks:
+  internal:
+  web:
+    external: true

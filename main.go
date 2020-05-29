@@ -6,6 +6,7 @@ import (
 	"os"
 	"fmt"
 
+	"github.com/k0kubun/pp"
 	"github.com/gocolly/redisstorage"
 	log "github.com/sirupsen/logrus"
 )
@@ -52,9 +53,9 @@ func main() {
 	if !ok {
 		log.Fatal("You must set REDIS_URI env variable")
 	}
-	
+
 	fmt.Println("REDIS_URI", redisURI)
-	
+
 	visitedStorage := &redisstorage.Storage{
 		Address:  redisURI,
 		Password: "",
@@ -114,6 +115,9 @@ func main() {
 		depth:       *depth,
 		Logger:      logger,
 	}
+
+	pp.Println(spider)
+
 	if *blacklistFile != "" {
 		blacklist, err := readLines(*blacklistFile)
 		if err != nil {

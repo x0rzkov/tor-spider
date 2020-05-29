@@ -86,9 +86,10 @@ func (spider *Spider) startWebServer() {
 			w.Write([]byte("Missing url"))
 			return
 		}
+		spider.Logger.Debugf("Crawling URL: %s", URL)
 		go spider.crawl(URL, true)
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("Ok"))
+		w.Write([]byte("Oki"))
 	})
 	go http.ListenAndServe(addr, nil)
 	log.Info("Listening on " + addr)
@@ -322,6 +323,8 @@ func (spider *Spider) Start() {
 func (spider *Spider) crawl(seed string, input bool) {
 	var c *colly.Collector
 	var err error
+	spider.Logger.Debugf("seed=%s, input=%b", seed, input)
+
 	if input {
 		c, err = spider.getInputCollector()
 	} else {
