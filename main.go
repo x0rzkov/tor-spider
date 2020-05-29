@@ -14,6 +14,7 @@ import (
 	"github.com/qor/media"
 	"github.com/qor/validations"
 	log "github.com/sirupsen/logrus"
+	ccsv "github.com/tsak/concurrent-csv-writer"
 )
 
 func main() {
@@ -24,6 +25,7 @@ func main() {
 	numWorkers := flag.Int("w", 32, "number of workers")
 	parallelism := flag.Int("p", 4, "parallelism of workers")
 	oniontree := flag.Bool("o", false, "import oniontree")
+	dumpUrls := flag.Bool("u", false, "dump urls from oniontree")
 
 	flag.Parse()
 
@@ -57,6 +59,28 @@ func main() {
 	db.AutoMigrate(&Service{})
 	db.AutoMigrate(&URL{})
 	db.AutoMigrate(&PublicKey{})
+
+	if *dumpUrls {
+		csvDataset, err := ccsv.NewCsvWriter("urls.txt")
+		if err != nil {
+			panic("Could not open `dataset.txt` for writing")
+		}
+
+		// Flush pending writes and close file upon exit of Sitemap()
+		defer csvDataset.Close()
+
+		type res struct {
+			Name string
+		}
+
+		var results []res
+		db.Raw("select name FROM urls").Scan(&results)
+		for _, result := range results {
+			csvDataset.Write([]string{result.Name})
+			csvDataset.Flush()
+		}
+		os.Exit(1)
+	}
 
 	// Setting up storage
 	// Redis for visited pages

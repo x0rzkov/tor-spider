@@ -1,6 +1,8 @@
 package main
 
 import (
+	"errors"
+	"fmt"
 	"net"
 	"net/http"
 	"net/url"
@@ -10,6 +12,7 @@ import (
 	"time"
 
 	"github.com/PuerkitoBio/goquery"
+	"github.com/abadojack/whatlanggo"
 	"github.com/gin-gonic/gin"
 	"github.com/gocolly/colly/v2"
 	"github.com/gocolly/colly/v2/extensions"
@@ -43,6 +46,16 @@ type PageInfo struct {
 	Language       string       `gorm:"index:language"`
 	LangConfidence float64      `json:"-"`
 	PageTopic      []*PageTopic `gorm:"many2many:page_topics;" json:"-"`
+}
+
+func (p *PageInfo) BeforeCreate() (err error) {
+	if p.Text != "" {
+		info := whatlanggo.Detect(p.Text)
+		p.Language = info.Lang.String()
+		p.LangConfidence = info.Confidence
+		fmt.Println("======> Language:", p.Language, " Script:", whatlanggo.Scripts[info.Script], " Confidence: ", p.LangConfidence)
+	}
+	return
 }
 
 // PageTopic is a struct used to store topics detected in a visited page (WIP)
@@ -122,7 +135,16 @@ func (spider *Spider) startWebAdmin() {
 	})
 
 	// Allow to use Admin to manage Tag, PublicKey, URL, Service
-	Admin.AddResource(&Tag{})
+	page := Admin.AddResource(&PageInfo{})
+	page.Meta(&admin.Meta{
+		Name: "Body",
+		Type: "text",
+	})
+
+	page.Meta(&admin.Meta{
+		Name: "Text",
+		Type: "text",
+	})
 
 	svc := Admin.AddResource(&Service{})
 	svc.Meta(&admin.Meta{
@@ -137,6 +159,8 @@ func (spider *Spider) startWebAdmin() {
 	})
 
 	Admin.AddResource(&URL{})
+
+	Admin.AddResource(&Tag{})
 
 	// initalize an HTTP request multiplexer
 	mux := http.NewServeMux()
@@ -191,7 +215,6 @@ func (spider *Spider) startJobsStorage() error {
 	}
 
 	delay := 50 * time.Millisecond
-
 	go func() {
 		lowerBound := int(float64(cap(spider.jobs)) * .15)
 		for {
@@ -237,9 +260,11 @@ func (spider *Spider) getCollector() (*colly.Collector, error) {
 		disallowed[index] = regexp.MustCompile(b)
 	}
 	c := colly.NewCollector(
+		// colly.AllowURLRevisit(),
 		colly.MaxDepth(spider.depth),
 		colly.Async(true),
 		colly.IgnoreRobotsTxt(),
+		// colly.Debugger(&debug.LogDebugger{}),
 		colly.DisallowedURLFilters(
 			disallowed...,
 		),
@@ -298,12 +323,19 @@ func (spider *Spider) getCollector() (*colly.Collector, error) {
 	c.OnResponse(func(r *colly.Response) {
 		body := string(r.Body)
 		bodyReader := strings.NewReader(body)
+
 		dom, err := goquery.NewDocumentFromReader(bodyReader)
 		title := ""
 		if err != nil {
 			spider.Logger.Error(err)
+			return
 		} else {
 			title = dom.Find("title").Contents().Text()
+		}
+
+		if title == "" {
+			spider.Logger.Error(errors.New("not an html page"))
+			return
 		}
 
 		text, err := articletext.GetArticleTextFromDocument(dom)
@@ -321,8 +353,6 @@ func (spider *Spider) getCollector() (*colly.Collector, error) {
 			UpdatedAt: time.Now(),
 		}
 
-		spider.Logger.Infof("url:%s\ntext:\n%s", r.Request.URL.String(), text)
-
 		var pageExists PageInfo
 		if !spider.rdbms.Where("url = ?", r.Request.URL.String()).First(&pageExists).RecordNotFound() {
 			spider.Logger.Debugf("skipping link=%s as already exists\n", r.Request.URL.String())
@@ -333,6 +363,9 @@ func (spider *Spider) getCollector() (*colly.Collector, error) {
 				spider.Logger.Error(err)
 			}
 		}
+
+		// index to manticoresearch
+
 		err = spider.pageStorage.SavePage(*result)
 		if err != nil {
 			spider.Logger.Error(err)
@@ -451,6 +484,8 @@ func (spider *Spider) crawl(seed string, input bool) {
 	err = c.Visit(seed)
 	if err == nil {
 		spider.Logger.Debugf("Collector started on %s", seed)
+	} else {
+		spider.Logger.Debugf("Collector could not start, err %s", err)
 	}
 	c.Wait()
 }

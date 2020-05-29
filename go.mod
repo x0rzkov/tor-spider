@@ -4,6 +4,7 @@ go 1.14
 
 require (
 	github.com/PuerkitoBio/goquery v1.5.1
+	github.com/abadojack/whatlanggo v1.0.1 // indirect
 	github.com/antchfx/htmlquery v1.2.3 // indirect
 	github.com/antchfx/xmlquery v1.2.4 // indirect
 	github.com/asaskevich/govalidator v0.0.0-20200428143746-21a406dcc535 // indirect
@@ -20,6 +21,7 @@ require (
 	github.com/gorilla/context v1.1.1 // indirect
 	github.com/gorilla/sessions v1.2.0 // indirect
 	github.com/gosimple/slug v1.9.0 // indirect
+	github.com/h2non/filetype v1.0.12 // indirect
 	github.com/jaytaylor/html2text v0.0.0-20200412013138-3577fbdbcff7
 	github.com/jinzhu/gorm v1.9.12 // indirect
 	github.com/k0kubun/pp v3.0.1+incompatible // indirect
@@ -44,6 +46,7 @@ require (
 	github.com/ssor/bom v0.0.0-20170718123548-6386211fdfcf // indirect
 	github.com/temoto/robotstxt v1.1.1 // indirect
 	github.com/theplant/cldr v0.0.0-20190423050709-9f76f7ce4ee8 // indirect
+	github.com/tsak/concurrent-csv-writer v0.0.0-20200206204244-84054e222625 // indirect
 	github.com/velebak/colly-sqlite3-storage v0.0.0-20190425160637-c76683d5163d
 	github.com/withmandala/go-log v0.1.0
 	go.mongodb.org/mongo-driver v1.3.3

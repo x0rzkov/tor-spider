@@ -64,7 +64,9 @@ func (spider *Spider) importOnionTree(dirname string) {
 		Callback: func(osPathname string, de *godirwalk.Dirent) error {
 			if !de.IsDir() {
 				parts := strings.Split(osPathname, "/")
-				fmt.Printf("Type:%s osPathname:%s tag:%s\n", de.ModeType(), osPathname, parts[1])
+				// fmt.Printf("Type:%s osPathname:%s tag:%s\n", de.ModeType(), osPathname, parts[1])
+				spider.Logger.Infof("Type:%s osPathname:%s tag:%s\n", de.ModeType(), osPathname, parts[1])
+
 				bytes, err := stdioutil.ReadFile(osPathname)
 				if err != nil {
 					return err
@@ -117,7 +119,7 @@ func (spider *Spider) importOnionTree(dirname string) {
 
 				// add tags
 				// check if tag already exists
-				tag := &Tag{Name: parts[1]}
+				tag := &Tag{Name: parts[4]}
 				var tagExists Tag
 				if spider.rdbms.Where("name = ?", parts[1]).First(&tagExists).RecordNotFound() {
 					spider.rdbms.Create(&tag)

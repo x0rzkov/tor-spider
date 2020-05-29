@@ -25,12 +25,10 @@ import (
 func GetArticleTextFromFile(filepath string) (string, error) {
 	// create reader from file
 	reader, err := os.Open(filepath)
-
 	if err != nil {
 		log.Fatal(err)
 		return "", err
 	}
-
 	return GetArticleText(reader)
 }
 
