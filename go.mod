@@ -16,7 +16,7 @@ require (
 	github.com/gobwas/glob v0.2.3 // indirect
 	github.com/goccy/go-yaml v1.4.6 // indirect
 	github.com/gocolly/colly v1.2.0
-	github.com/gocolly/colly/v2 v2.0.1 // indirect
+	github.com/gocolly/colly/v2 v2.0.1
 	github.com/gocolly/redisstorage v0.0.0-20190812112800-1745c5e6d0ba
 	github.com/gorilla/context v1.1.1 // indirect
 	github.com/gorilla/sessions v1.2.0 // indirect
@@ -24,6 +24,7 @@ require (
 	github.com/h2non/filetype v1.0.12 // indirect
 	github.com/jaytaylor/html2text v0.0.0-20200412013138-3577fbdbcff7
 	github.com/jinzhu/gorm v1.9.12 // indirect
+	github.com/jpillora/go-tld v1.0.0 // indirect
 	github.com/k0kubun/pp v3.0.1+incompatible // indirect
 	github.com/kennygrant/sanitize v1.2.4 // indirect
 	github.com/mattn/go-colorable v0.1.6 // indirect

@@ -1,3 +1,4 @@
+---
 version: '3.7'
 services:
 
@@ -7,11 +8,21 @@ services:
     ports:
     - 9306:9306
     - 9312:9312
+    - 9308:9308
     volumes:
+    - ./.config/manticore/tor-spider.sql:/opt/tor-spider/tor-spider.sql
     - ./.config/manticore/manticore.conf:/etc/sphinxsearch/sphinx.conf
     - manticore-data:/var/lib/manticore/data
     networks:
     - internal
+    ulimits:
+      nproc: 65535
+      nofile:
+         soft: 65535
+         hard: 65535
+      memlock:
+        soft: -1
+        hard: -1
     restart: unless-stopped
  
   onionscan:
@@ -82,6 +93,7 @@ services:
     - internal
     - web
 
+  # ref. multi-es https://github.com/Richman711/ELK-Stack-Deployments/blob/master/docker-compose/7-ES_1-Kibana_basic-sec.yml
   elasticsearch:
     image: docker.elastic.co/elasticsearch/elasticsearch:7.6.1
     environment:
@@ -89,6 +101,9 @@ services:
       - bootstrap.memory_lock=true
       - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
     ulimits:
+      nofile:
+        soft: 65535
+        hard: 65535
       memlock:
         soft: -1
         hard: -1
@@ -97,6 +112,9 @@ services:
     networks:
     - internal
     - web
+    volumes:
+    - es-data:/usr/share/elasticsearch/data
+    - es-log:/var/log/elasticsearch
 
   kibana:
     image: docker.elastic.co/kibana/kibana:7.6.1
@@ -198,6 +216,8 @@ services:
     command: ["./tor-spider", "-b", "/dist/blacklist.txt"]
 
 volumes:
+  es-log:
+  es-data:
   db-data:
   mongo-data:
   mongo-backup:

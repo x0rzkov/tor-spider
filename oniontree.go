@@ -40,6 +40,7 @@ type Service struct {
 	URLs        []*URL       `json:"urls,omitempty" yaml:"urls,omitempty"`
 	PublicKeys  []*PublicKey `json:"public_keys,omitempty" yaml:"public_keys,omitempty"`
 	Tags        []*Tag       `gorm:"many2many:service_tags;" json:"tags,omitempty" yaml:"tags,omitempty"`
+	Wapp        string       `gorm:"type:longtext; CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci" sql:"type:longtext"`
 }
 
 type URL struct {

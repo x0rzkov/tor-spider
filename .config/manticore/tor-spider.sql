@@ -1,0 +1,16 @@
+CREATE TABLE `page_infos` (
+  `created_at` timestamp,
+  `updated_at` timestamp,
+  `deleted_at` timestamp,
+  `url` text,
+  `text` text,
+  `title` text,
+  `is_home_page` integer,
+  `status` integer,
+  `language` text,
+  `lang_confidence` float,
+  `domain` text,
+  `fingerprint` text,
+  `wapp` text,
+  `page_properties` text,
+);

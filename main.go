@@ -9,12 +9,15 @@ import (
 	"github.com/gocolly/redisstorage"
 	"github.com/jinzhu/gorm"
 	_ "github.com/jinzhu/gorm/dialects/mysql"
+	"github.com/jpillora/go-tld"
 	"github.com/k0kubun/pp"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/qor/media"
 	"github.com/qor/validations"
 	log "github.com/sirupsen/logrus"
 	ccsv "github.com/tsak/concurrent-csv-writer"
+
+	"github.com/samirettali/tor-spider/pkg/gowap"
 )
 
 func main() {
@@ -26,6 +29,7 @@ func main() {
 	parallelism := flag.Int("p", 4, "parallelism of workers")
 	oniontree := flag.Bool("o", false, "import oniontree")
 	dumpUrls := flag.Bool("u", false, "dump urls from oniontree")
+	fixDomain := flag.Bool("f", false, "fix missing domains")
 
 	flag.Parse()
 
@@ -55,10 +59,25 @@ func main() {
 	// migrate tables
 	db.AutoMigrate(&PageInfo{})
 	db.AutoMigrate(&PageTopic{})
+	db.AutoMigrate(&PageAttribute{})
 	db.AutoMigrate(&Tag{})
 	db.AutoMigrate(&Service{})
 	db.AutoMigrate(&URL{})
 	db.AutoMigrate(&PublicKey{})
+
+	if *fixDomain {
+		var pages []PageInfo
+		db.Where("domain = ?", "").Find(&pages)
+		for _, page := range pages {
+			u, _ := tld.Parse(page.URL)
+			page.Domain = u.Domain
+			log.Info("domain: ", u.Domain)
+			err := db.Save(page).Error
+			if err != nil {
+				log.Fatal(err)
+			}
+		}
+	}
 
 	if *dumpUrls {
 		csvDataset, err := ccsv.NewCsvWriter("urls.txt")
@@ -141,6 +160,12 @@ func main() {
 		logger.Error("You must set PROXY_URI env variable")
 	}
 
+	// instanciate gowap dictionary
+	wapp, err := gowap.Init("./shared/dataset/wappalyzer/apps.json", proxyURI, false)
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	spider := &Spider{
 		rdbms:       db,
 		storage:     visitedStorage,
@@ -150,6 +175,7 @@ func main() {
 		numWorkers:  *numWorkers,
 		parallelism: *parallelism,
 		depth:       *depth,
+		wapp:        wapp,
 		Logger:      logger,
 	}
 

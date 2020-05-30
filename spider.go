@@ -1,6 +1,10 @@
 package main
 
 import (
+	"crypto/md5"
+	"database/sql/driver"
+	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net"
@@ -18,12 +22,15 @@ import (
 	"github.com/gocolly/colly/v2/extensions"
 	"github.com/gocolly/colly/v2/storage"
 	"github.com/jinzhu/gorm"
+	"github.com/jpillora/go-tld"
 	"github.com/qor/admin"
 	"github.com/qor/assetfs"
 	"github.com/qor/qor/utils"
+	"github.com/qor/validations"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/samirettali/tor-spider/pkg/articletext"
+	"github.com/samirettali/tor-spider/pkg/gowap"
 )
 
 /*
@@ -37,30 +44,78 @@ type Job struct {
 
 // PageInfo is a struct used to save the informations about a visited page
 type PageInfo struct {
-	ID             uint         `gorm:"primary_key" json:"-"`
-	CreatedAt      time.Time    `json:"-"`
-	UpdatedAt      time.Time    `json:"-"`
-	DeletedAt      *time.Time   `sql:"index" json:"-"`
-	URL            string       `gorm:"index:url"`
-	Body           string       `gorm:"type:longtext; CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci" sql:"type:longtext"`
-	Text           string       `gorm:"type:longtext; CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci" sql:"type:longtext"`
-	Title          string       `gorm:"type:longtext; CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci" sql:"type:longtext"`
-	Domain         string       `gorm:"index:domain"`
-	IsHomePage     bool         `gorm:"index:home_page"`
-	Status         int          `gorm:"index:status"`
-	Language       string       `gorm:"index:language"`
-	LangConfidence float64      `json:"-"`
-	PageTopic      []*PageTopic `gorm:"many2many:page_topics;" json:"-"`
+	ID             uint            `gorm:"primary_key" json:"-"`
+	CreatedAt      time.Time       `json:"-"`
+	UpdatedAt      time.Time       `json:"-"`
+	DeletedAt      *time.Time      `sql:"index" json:"-"`
+	URL            string          `gorm:"index:url"`
+	Body           string          `gorm:"type:longtext; CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci" sql:"type:longtext"`
+	Summary        string          `gorm:"type:longtext; CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci" sql:"type:longtext"`
+	Title          string          `gorm:"type:longtext; CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci" sql:"type:longtext"`
+	Domain         string          `gorm:"index:domain"`
+	IsHomePage     bool            `gorm:"index:home_page"`
+	Status         int             `gorm:"index:status"`
+	Language       string          `gorm:"index:language"`
+	LangConfidence float64         `json:"-"`
+	Fingerprint    string          `json:"-" gorm:"index:fingerprint"`
+	Wapp           string          `gorm:"type:longtext; CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci" sql:"type:longtext" json:"-"`
+	PageTopic      []*PageTopic    `gorm:"many2many:page_topics;" json:"-"`
+	PageProperties PageProperties  `sql:"type:text" json:"-"`
+	PageAttributes []PageAttribute `json:"-"`
 }
 
 func (p *PageInfo) BeforeCreate() (err error) {
-	if p.Text != "" {
-		info := whatlanggo.Detect(p.Text)
+	if p.Summary != "" {
+		info := whatlanggo.Detect(p.Summary)
 		p.Language = info.Lang.String()
 		p.LangConfidence = info.Confidence
 		fmt.Println("======> Language:", p.Language, " Script:", whatlanggo.Scripts[info.Script], " Confidence: ", p.LangConfidence)
 	}
 	return
+}
+
+type PageProperties []PageProperty
+
+type PageProperty struct {
+	Name  string
+	Value string
+}
+
+func (pageProperties *PageProperties) Scan(value interface{}) error {
+	switch v := value.(type) {
+	case []byte:
+		return json.Unmarshal(v, pageProperties)
+	case string:
+		if v != "" {
+			return pageProperties.Scan([]byte(v))
+		}
+	default:
+		return errors.New("not supported")
+	}
+	return nil
+}
+
+func (pageProperties PageProperties) Value() (driver.Value, error) {
+	if len(pageProperties) == 0 {
+		return nil, nil
+	}
+	return json.Marshal(pageProperties)
+}
+
+type PageAttribute struct {
+	gorm.Model
+	PageID uint
+	Name   string
+	Value  string
+}
+
+func (p PageAttribute) Validate(db *gorm.DB) {
+	if strings.TrimSpace(p.Name) == "" {
+		db.AddError(validations.NewError(p, "Name", "Name can not be empty"))
+	}
+	if strings.TrimSpace(p.Value) == "" {
+		db.AddError(validations.NewError(p, "Value", "Value can not be empty"))
+	}
 }
 
 // PageTopic is a struct used to store topics detected in a visited page (WIP)
@@ -85,8 +140,8 @@ type Spider struct {
 	storage     storage.Storage
 	jobsStorage JobsStorage
 	pageStorage PageStorage
-
-	Logger *log.Logger
+	wapp        *gowap.Wappalyzer
+	Logger      *log.Logger
 }
 
 // JobsStorage is an interface which handles the storage of the jobs when it's
@@ -147,7 +202,7 @@ func (spider *Spider) startWebAdmin() {
 	})
 
 	page.Meta(&admin.Meta{
-		Name: "Text",
+		Name: "Summary",
 		Type: "text",
 	})
 
@@ -348,29 +403,65 @@ func (spider *Spider) getCollector() (*colly.Collector, error) {
 			spider.Logger.Error(err)
 		}
 
+		// extract the domain vanity hash
+		u, _ := tld.Parse(r.Request.URL.String())
+		spider.Logger.Debugf("[parseDomain] subdomain=%s, domain=%s", u.Subdomain, u.Domain)
+
+		// extract a md5 hash of the text to avoid duplicate content (login pages, captachas,...)
+		fingerprint := strToMD5(text)
+
+		// gowap the tor-website
+		res, err := spider.wapp.Analyze(r.Request.URL.String())
+		if err != nil {
+			spider.Logger.Error(err)
+		}
+		// prettyJSON, err := json.MarshalIndent(res, "", "  ")
+		wappJson, err := json.Marshal(res)
+		if err != nil {
+			spider.Logger.Error(err)
+		}
+
+		// check if home page
+		home, err := url.Parse(r.Request.URL.String())
+		if err != nil {
+			spider.Logger.Error(err)
+		}
+
+		var isHomePage bool
+		if home.RequestURI() == "" || home.RequestURI() == "/" {
+			isHomePage = true
+		}
+
 		result := &PageInfo{
-			URL:       r.Request.URL.String(),
-			Body:      body,
-			Text:      text,
-			Status:    r.StatusCode,
-			Title:     title,
-			CreatedAt: time.Now(),
-			UpdatedAt: time.Now(),
+			URL:         r.Request.URL.String(),
+			Summary:     text,
+			Domain:      u.Domain,
+			Status:      r.StatusCode,
+			Title:       title,
+			Fingerprint: fingerprint,
+			IsHomePage:  isHomePage,
+			Wapp:        string(wappJson),
+			CreatedAt:   time.Now(),
+			UpdatedAt:   time.Now(),
 		}
 
 		var pageExists PageInfo
-		if !spider.rdbms.Where("url = ?", r.Request.URL.String()).First(&pageExists).RecordNotFound() {
-			spider.Logger.Debugf("skipping link=%s as already exists\n", r.Request.URL.String())
+		if !spider.rdbms.Where("fingerprint = ?", fingerprint).First(&pageExists).RecordNotFound() {
+			spider.Logger.Debugf("skipping link=%s as similar content already exists\n", r.Request.URL.String())
+			// if simalar content exists, skip from mysql and elasticsearch indexation
+			return
 		} else {
 			spider.Logger.Debug("Insert into db...")
 			err = spider.rdbms.Create(result).Error
 			if err != nil {
 				spider.Logger.Error(err)
+				return
 			}
 		}
 
 		// index to manticoresearch
 
+		// index to elasticsearch
 		err = spider.pageStorage.SavePage(*result)
 		if err != nil {
 			spider.Logger.Error(err)
@@ -493,4 +584,9 @@ func (spider *Spider) crawl(seed string, input bool) {
 		spider.Logger.Debugf("Collector could not start, err %s", err)
 	}
 	c.Wait()
+}
+
+func strToMD5(text string) string {
+	hash := md5.Sum([]byte(text))
+	return hex.EncodeToString(hash[:])
 }
