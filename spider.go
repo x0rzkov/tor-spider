@@ -34,6 +34,13 @@ import (
 )
 
 /*
+	Todo:
+	- filter none html content (eg. magnet, torrent link)
+	- use manticoresearch as full text search engine
+	- try nboost
+	- onionscan
+		- onionscan --jsonReport --torProxyAddress=127.0.0.1:5566 --scans web lfbg75wjgi4nzdio.onion
+		- onionscan --jsonReport --torProxyAddress=127.0.0.1:5566 lfbg75wjgi4nzdio.onion
 	Phobos, Tor66 and Tordex
 */
 
@@ -229,6 +236,28 @@ func (spider *Spider) startWebAdmin() {
 	Admin.MountTo("/admin", mux)
 
 	router := gin.Default()
+
+	// add route to home page
+	router.GET("/", func(c *gin.Context) {
+		c.String(200, "welcome to your doom.")
+	})
+
+	// add route to search page
+	router.GET("/search", func(c *gin.Context) {
+		c.String(500, "not implemented yet")
+	})
+
+	// add route to add new website
+	router.GET("/add", func(c *gin.Context) {
+		inputUrl, _ := c.GetQuery("url")
+		if inputUrl == "" {
+			c.String(500, "missing url parameter.")
+			return
+		}
+		spider.Logger.Debugf("Crawling URL: %s", inputUrl)
+		go spider.crawl(inputUrl, true)
+		c.String(200, "ok")
+	})
 
 	// add basic auth
 	admin := router.Group("/admin", gin.BasicAuth(gin.Accounts{"tor": "xor"}))

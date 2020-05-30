@@ -69,22 +69,40 @@ services:
     - MYSQL_USER=${TOR_MYSQL_USER}
     - MYSQL_PASSWORD=${TOR_MYSQL_PASSWORD}
     volumes:
-    - ./shard/backup:/backup
+    - ./shard/backup/mysql:/backup
     restart: unless-stopped
 
   redis:
     image: redis
+    container_name: ${NAMESPACE}-redis
     ports:
     - 6379:6379
     networks:
     - internal
     - web
 
+  redis-backup:
+    image: x0rzkov/redis-backup:latest
+    container_name: ${NAMESPACE}-redis-backup
+    build: 
+      context: .docker/redis-backup
+      dockerfile: Dockerfile
+    # restart: unless-stopped
+    environment:
+    - redisoperation="export"
+    - rediskeydir="/ebs/data/backup/redis/" 
+    - rediskeyfile="tor-spider_redisbackup.json" 
+    - redishost="redis" 
+    - redisport="6379" 
+    - redisdb="0"
+    volumes:
+    - ./shared/backup/redis:/ebs/data
+
   redis-commander:
-    container_name: redis-commander
-    hostname: redis-commander
     image: rediscommander/redis-commander:latest
-    restart: always
+    container_name: ${NAMESPACE}-redis-commander
+    hostname: redis-commander
+    restart: unless-stopped
     environment:
     - REDIS_HOSTS=local:redis:6379
     ports:
@@ -95,6 +113,7 @@ services:
 
   # ref. multi-es https://github.com/Richman711/ELK-Stack-Deployments/blob/master/docker-compose/7-ES_1-Kibana_basic-sec.yml
   elasticsearch:
+    container_name: ${NAMESPACE}-elastic
     image: docker.elastic.co/elasticsearch/elasticsearch:7.6.1
     environment:
       - discovery.type=single-node
@@ -117,6 +136,7 @@ services:
     - es-log:/var/log/elasticsearch
 
   kibana:
+    container_name: ${NAMESPACE}-kibana
     image: docker.elastic.co/kibana/kibana:7.6.1
     ports:
       - 5601:5601
@@ -190,6 +210,7 @@ services:
 
   spider:
     image: tor-spider
+    container_name: ${NAMESPACE}-spider
     build:
       context: .
       dockerfile: Dockerfile
