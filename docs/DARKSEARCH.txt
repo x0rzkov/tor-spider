@@ -1,0 +1,40 @@
+Darksearch - The 1st real Dark Web search engine (Darksearch vs Ahmia)
+DarkSearch.io
+DarkSearch.io
+Follow
+May 9, 2019 · 3 min read
+Hello everyone,
+
+I’m Jocelin, under this title a little scathing I admit it, I announce you the release of DarkSearch.io the first real search engine of the Dark Web (according to me :p). It is a little pretentious to claim to be the first “real” engine, but I really think so.
+
+Why develop a search engine on the Dark Web ?
+I’m very close to cybersecurity, and I realized that the darkweb is still quite mystical among customers and CISOs. I developed DarkSearch to demystify the Dark Web, and especially allow companies to directly research and directly access sites onion (through Tor2Web) in order to protect their assets.
+
+I wanted to simplify both the “technical barrier” to access the darkweb, but also simplify monitoring activities on this network.
+
+DarkSearch is both a tool to facilitate the work of cybersecurity cabinets but also a tool that addresses directly to their customers (companies).
+
+Currently DarkSearch v1 indexes all .onion sites in free access, but our goal is also to give you access to the content of all blackmarkets and restricted forums! Which is quite exclusive as functionality. This aspect will be settled soon thanks to DarkSearch v2 (see below).
+
+DarkSearch.io home page
+Why is DarkSearch different from Ahmia?
+There are some other engines such as Ahmia.fi, here are some characteristics that differentiate us:
+
+Like Ahmia, DarkSearch is free;
+Unlike Ahmia we provide a free API to automate searches (with some limitations to avoid the DDOS);
+According to Ahmia, their search engine indexes just under 3,000 sites .onion, DarkSearch has almost 20,000;
+We integrate recurrent crawling (weekly, like Shodan at the time);
+The Darksearch results are directly accessible on the ClearWeb thanks to Tor2Web;
+Finally, like Ahmia we do not keep logs of searches done;
+What are the upcoming developments?
+In a few weeks we will propose DarkSearch v2, this version will include:
+
+Our own Tor Proxy to get rid of Tor2Web and related problems;
+A .onion address to also put the search engine directly on Tor;
+A Keyword Alerts system to allow companies to be alerted in real time of new relevant elements and thus greatly facilitate your Watch;
+A cache system to allow the consultation of pages and sites while they are offline;
+And another very interesting feature allowing you to infiltrate directly on blackmarkets and restricted sites, directly via OUR accounts! I do not detail the workings of the functionality, but our goal is to give you access to this high value data as easily as if it were open access.
+I do not have a specific date to communicate for DarkSearch v2, but I’ll keep you posted!
+In the meantime, send us your comments, feedback by email at hello@darksearch.io or on social networks.
+
+And stay informed of the progress of the project by following us on Twitter and Linkedin!
