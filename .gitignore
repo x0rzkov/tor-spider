@@ -1,4 +1,6 @@
+onionscandb/
 .env
 tor-spider
 .idea
 local-env
+python/onion_osint/onionscan_results/
