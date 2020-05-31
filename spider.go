@@ -34,20 +34,6 @@ import (
 	"github.com/samirettali/tor-spider/pkg/gowap"
 )
 
-/*
-	Todo:
-	- filter none html content (eg. magnet, torrent link)
-	- use manticoresearch as full text search engine
-	- try nboost
-	- onionscan
-		- onionscan --jsonReport --torProxyAddress=127.0.0.1:5566 --scans web lfbg75wjgi4nzdio.onion
-		- onionscan --jsonReport --torProxyAddress=127.0.0.1:5566 lfbg75wjgi4nzdio.onion
-	Phobos, Tor66 and Tordex
-	- regex bitcoin [13][a-km-zA-HJ-NP-Z0-9]{26,33}$
-	- regex email address ([a-zA-Z0-9_\-\.]+)@([a-zA-Z0-9_\-\.]+)\.([a-zA-Z]{2,5})$
-	- regex onion urls (?:https?://)?(?:www)?(\S*?\.onion)\b
-*/
-
 // Job is a struct that represents a job
 type Job struct {
 	URL string
@@ -117,9 +103,9 @@ func (pageProperties PageProperties) Value() (driver.Value, error) {
 
 type PageAttribute struct {
 	gorm.Model
-	PageID uint
-	Name   string
-	Value  string
+	PageInfoID uint
+	Name       string
+	Value      string
 }
 
 func (p PageAttribute) Validate(db *gorm.DB) {
@@ -134,6 +120,7 @@ func (p PageAttribute) Validate(db *gorm.DB) {
 // PageTopic is a struct used to store topics detected in a visited page (WIP)
 type PageTopic struct {
 	gorm.Model
+	PageInfoID     uint
 	Name           string `gorm:"index:name"`
 	Language       string `gorm:"index:language"`
 	LangConfidence float64
@@ -149,15 +136,17 @@ type Spider struct {
 	results     chan PageInfo
 	proxyURI    string
 
+	regexTwitter *regexp.Regexp
 	regexOnion   *regexp.Regexp
 	regexBitcoin *regexp.Regexp
 	regexEmail   *regexp.Regexp
-	rdbms        *gorm.DB
-	storage      storage.Storage
-	jobsStorage  JobsStorage
-	pageStorage  PageStorage
-	wapp         *gowap.Wappalyzer
-	Logger       *log.Logger
+
+	rdbms       *gorm.DB
+	storage     storage.Storage
+	jobsStorage JobsStorage
+	pageStorage PageStorage
+	wapp        *gowap.Wappalyzer
+	Logger      *log.Logger
 }
 
 // JobsStorage is an interface which handles the storage of the jobs when it's
@@ -212,6 +201,8 @@ func (spider *Spider) startWebAdmin() {
 
 	// Allow to use Admin to manage Tag, PublicKey, URL, Service
 	page := Admin.AddResource(&PageInfo{})
+	page.IndexAttrs("ID", "Title", "Language", "URL")
+
 	page.Meta(&admin.Meta{
 		Name: "Body",
 		Type: "text",
@@ -219,7 +210,7 @@ func (spider *Spider) startWebAdmin() {
 
 	page.Meta(&admin.Meta{
 		Name: "Summary",
-		Type: "text",
+		Type: "rich_editor",
 	})
 
 	svc := Admin.AddResource(&Service{})
@@ -483,20 +474,33 @@ func (spider *Spider) getCollector() (*colly.Collector, error) {
 
 		// check for bitcoins and email addresses
 		emails := spider.regexEmail.FindAllString(body, -1)
+		emails = removeDuplicates(emails)
 		for _, email := range emails {
 			result.PageAttributes = append(result.PageAttributes, PageAttribute{Name: "email", Value: email})
 			result.PageProperties = append(result.PageProperties, PageProperty{Name: "email", Value: email})
 		}
 		bitcoins := spider.regexBitcoin.FindAllString(body, -1)
+		bitcoins = removeDuplicates(bitcoins)
 		for _, bitcoin := range bitcoins {
 			result.PageAttributes = append(result.PageAttributes, PageAttribute{Name: "bitcoin", Value: bitcoin})
 			result.PageProperties = append(result.PageProperties, PageProperty{Name: "bitcoin", Value: bitcoin})
 		}
 
-		onions := spider.regexBitcoin.FindAllString(body, -1)
-		for _, onion := range onions {
-			spider.jobs <- Job{onion}
+		twitters := spider.regexTwitter.FindAllString(body, -1)
+		twitters = removeDuplicates(twitters)
+		for _, twitter := range twitters {
+			result.PageAttributes = append(result.PageAttributes, PageAttribute{Name: "twitter", Value: twitter})
+			result.PageProperties = append(result.PageProperties, PageProperty{Name: "twitter", Value: twitter})
 		}
+
+		/*
+			onions := spider.regexOnion.FindAllString(body, -1)
+			for _, onion := range onions {
+				result.PageAttributes = append(result.PageAttributes, PageAttribute{Name: "outbound", Value: onion})
+				result.PageProperties = append(result.PageProperties, PageProperty{Name: "outbound", Value: onion})
+				spider.jobs <- Job{onion}
+			}
+		*/
 
 		// keywords
 		var topicsProse []string

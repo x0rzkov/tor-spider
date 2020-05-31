@@ -23,11 +23,11 @@ import (
 
 func main() {
 	blacklistFile := flag.String("b", "", "blacklist file")
-	depth := flag.Int("d", 10, "depth of each collector")
+	depth := flag.Int("d", 3, "depth of each collector")
 	verbose := flag.Bool("v", false, "verbose")
 	debug := flag.Bool("x", false, "debug")
-	numWorkers := flag.Int("w", 32, "number of workers")
-	parallelism := flag.Int("p", 4, "parallelism of workers")
+	numWorkers := flag.Int("w", 64, "number of workers")
+	parallelism := flag.Int("p", 32, "parallelism of workers")
 	oniontree := flag.Bool("o", false, "import oniontree")
 	dumpUrls := flag.Bool("u", false, "dump urls from oniontree")
 	fixDomain := flag.Bool("f", false, "fix missing domains")
@@ -182,6 +182,11 @@ func main() {
 		log.Fatal(err)
 	}
 
+	twitterPatternRegexp, err := regexp.Compile(`(https?\:)?(//)(www[\.])?(twitter.com/)([a-zA-Z0-9_]{1,15})[\/]?`)
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	spider := &Spider{
 		rdbms:        db,
 		storage:      visitedStorage,
@@ -192,6 +197,7 @@ func main() {
 		parallelism:  *parallelism,
 		depth:        *depth,
 		wapp:         wapp,
+		regexTwitter: twitterPatternRegexp,
 		regexBitcoin: bitcoinPatternRegexp,
 		regexEmail:   emailPatternRegexp,
 		regexOnion:   onionPatternRegexp,

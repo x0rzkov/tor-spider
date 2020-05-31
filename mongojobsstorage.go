@@ -43,8 +43,23 @@ func (s *MongoJobsStorage) Init() error {
 // GetJob returns a job
 func (s *MongoJobsStorage) GetJob() (Job, error) {
 	var job Job
-
 	ctx := context.Background()
+
+	// ref.
+	// pipeline := []bson.D{bson.D{{"$sample", bson.D{{"size", 10}}}}}
+	// pipeline := []bson.E{bson.E{"$sample", bson.E{"size", 10}}}
+	// collection.Aggregate(context.TODO(), pipeline)
+	/*
+		// http://bdadam.com/blog/finding-a-random-document-in-mongodb.html
+		var query = {
+		    state: 'OK',
+		    rnd: {
+		        $gte: Math.random()
+		    }
+		}
+
+		collection.FindOne(query)
+	*/
 	err := s.collection.FindOne(ctx, bson.D{}).Decode(&job)
 	if err != nil {
 		if errors.Is(err, mongo.ErrNoDocuments) {
@@ -52,7 +67,6 @@ func (s *MongoJobsStorage) GetJob() (Job, error) {
 		}
 		return job, err
 	}
-
 	_, err = s.collection.DeleteOne(ctx, job)
 	if err != nil {
 		return job, err
@@ -72,14 +86,12 @@ func (s *MongoJobsStorage) SaveJob(job Job) error {
 		}
 		s.jobs <- job
 		return nil
-
 	}
 }
 
 func (s *MongoJobsStorage) flush(quantity int) error {
 	ctx := context.Background()
 	jobs := make([]interface{}, 0)
-
 	for i := 0; i < quantity; i++ {
 		job := <-s.jobs
 		jobs = append(jobs, job)
