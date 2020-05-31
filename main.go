@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"regexp"
 
 	"github.com/gocolly/redisstorage"
 	"github.com/jinzhu/gorm"
@@ -166,17 +167,35 @@ func main() {
 		log.Fatal(err)
 	}
 
+	bitcoinPatternRegexp, err := regexp.Compile(`[13][a-km-zA-HJ-NP-Z0-9]{26,33}$`)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	emailPatternRegexp, err := regexp.Compile(`([a-zA-Z0-9_\-\.]+)@([a-zA-Z0-9_\-\.]+)\.([a-zA-Z]{2,5})$`)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	onionPatternRegexp, err := regexp.Compile(`(?:https?://)?(?:www)?(\S*?\.onion)\b`)
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	spider := &Spider{
-		rdbms:       db,
-		storage:     visitedStorage,
-		jobsStorage: jobsStorage,
-		pageStorage: pageStorage,
-		proxyURI:    proxyURI,
-		numWorkers:  *numWorkers,
-		parallelism: *parallelism,
-		depth:       *depth,
-		wapp:        wapp,
-		Logger:      logger,
+		rdbms:        db,
+		storage:      visitedStorage,
+		jobsStorage:  jobsStorage,
+		pageStorage:  pageStorage,
+		proxyURI:     proxyURI,
+		numWorkers:   *numWorkers,
+		parallelism:  *parallelism,
+		depth:        *depth,
+		wapp:         wapp,
+		regexBitcoin: bitcoinPatternRegexp,
+		regexEmail:   emailPatternRegexp,
+		regexOnion:   onionPatternRegexp,
+		Logger:       logger,
 	}
 
 	pp.Println(spider)

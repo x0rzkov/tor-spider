@@ -9,6 +9,7 @@ require (
 	github.com/antchfx/xmlquery v1.2.4 // indirect
 	github.com/asaskevich/govalidator v0.0.0-20200428143746-21a406dcc535 // indirect
 	github.com/cenkalti/backoff/v4 v4.0.2
+	github.com/deckarep/golang-set v1.7.1 // indirect
 	github.com/disintegration/imaging v1.6.2 // indirect
 	github.com/elastic/go-elasticsearch/v8 v8.0.0-20200514114228-c61e61962819
 	github.com/gin-gonic/gin v1.6.3 // indirect
@@ -30,6 +31,7 @@ require (
 	github.com/mattn/go-colorable v0.1.6 // indirect
 	github.com/mattn/go-sqlite3 v2.0.3+incompatible // indirect
 	github.com/microcosm-cc/bluemonday v1.0.2 // indirect
+	github.com/mingrammer/commonregex v1.0.1 // indirect
 	github.com/olekukonko/tablewriter v0.0.4 // indirect
 	github.com/onionltd/oniontree-tools v0.0.0-20200217165256-a771af70bf68 // indirect
 	github.com/qor/admin v0.0.0-20200315024928-877b98a68a6f // indirect
@@ -52,6 +54,8 @@ require (
 	github.com/withmandala/go-log v0.1.0
 	go.mongodb.org/mongo-driver v1.3.3
 	golang.org/x/net v0.0.0-20200421231249-e086a090c8fd
+	gonum.org/v1/gonum v0.7.0 // indirect
 	google.golang.org/appengine v1.6.6 // indirect
+	gopkg.in/jdkato/prose.v2 v2.0.0-20190814032740-822d591a158c // indirect
 	gopkg.in/neurosnap/sentences.v1 v1.0.6
 )

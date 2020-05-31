@@ -28,6 +28,7 @@ import (
 	"github.com/qor/qor/utils"
 	"github.com/qor/validations"
 	log "github.com/sirupsen/logrus"
+	"gopkg.in/jdkato/prose.v2"
 
 	"github.com/samirettali/tor-spider/pkg/articletext"
 	"github.com/samirettali/tor-spider/pkg/gowap"
@@ -42,6 +43,9 @@ import (
 		- onionscan --jsonReport --torProxyAddress=127.0.0.1:5566 --scans web lfbg75wjgi4nzdio.onion
 		- onionscan --jsonReport --torProxyAddress=127.0.0.1:5566 lfbg75wjgi4nzdio.onion
 	Phobos, Tor66 and Tordex
+	- regex bitcoin [13][a-km-zA-HJ-NP-Z0-9]{26,33}$
+	- regex email address ([a-zA-Z0-9_\-\.]+)@([a-zA-Z0-9_\-\.]+)\.([a-zA-Z]{2,5})$
+	- regex onion urls (?:https?://)?(?:www)?(\S*?\.onion)\b
 */
 
 // Job is a struct that represents a job
@@ -59,6 +63,8 @@ type PageInfo struct {
 	Body           string          `gorm:"type:longtext; CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci" sql:"type:longtext"`
 	Summary        string          `gorm:"type:longtext; CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci" sql:"type:longtext"`
 	Title          string          `gorm:"type:longtext; CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci" sql:"type:longtext"`
+	Keywords       string          `gorm:"type:longtext; CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci" sql:"type:longtext"`
+	Category       string          `gorm:"index:category"`
 	Domain         string          `gorm:"index:domain"`
 	IsHomePage     bool            `gorm:"index:home_page"`
 	Status         int             `gorm:"index:status"`
@@ -143,12 +149,15 @@ type Spider struct {
 	results     chan PageInfo
 	proxyURI    string
 
-	rdbms       *gorm.DB
-	storage     storage.Storage
-	jobsStorage JobsStorage
-	pageStorage PageStorage
-	wapp        *gowap.Wappalyzer
-	Logger      *log.Logger
+	regexOnion   *regexp.Regexp
+	regexBitcoin *regexp.Regexp
+	regexEmail   *regexp.Regexp
+	rdbms        *gorm.DB
+	storage      storage.Storage
+	jobsStorage  JobsStorage
+	pageStorage  PageStorage
+	wapp         *gowap.Wappalyzer
+	Logger       *log.Logger
 }
 
 // JobsStorage is an interface which handles the storage of the jobs when it's
@@ -439,26 +448,10 @@ func (spider *Spider) getCollector() (*colly.Collector, error) {
 		// extract a md5 hash of the text to avoid duplicate content (login pages, captachas,...)
 		fingerprint := strToMD5(text)
 
-		// gowap the tor-website
-		res, err := spider.wapp.Analyze(r.Request.URL.String())
-		if err != nil {
-			spider.Logger.Error(err)
-		}
-		// prettyJSON, err := json.MarshalIndent(res, "", "  ")
-		wappJson, err := json.Marshal(res)
-		if err != nil {
-			spider.Logger.Error(err)
-		}
-
 		// check if home page
 		home, err := url.Parse(r.Request.URL.String())
 		if err != nil {
 			spider.Logger.Error(err)
-		}
-
-		var isHomePage bool
-		if home.RequestURI() == "" || home.RequestURI() == "/" {
-			isHomePage = true
 		}
 
 		result := &PageInfo{
@@ -468,11 +461,58 @@ func (spider *Spider) getCollector() (*colly.Collector, error) {
 			Status:      r.StatusCode,
 			Title:       title,
 			Fingerprint: fingerprint,
-			IsHomePage:  isHomePage,
-			Wapp:        string(wappJson),
 			CreatedAt:   time.Now(),
 			UpdatedAt:   time.Now(),
 		}
+
+		// var isHomePage bool
+		if home.RequestURI() == "" || home.RequestURI() == "/" {
+			result.IsHomePage = true
+			// gowap the tor-website
+			res, err := spider.wapp.Analyze(r.Request.URL.String())
+			if err != nil {
+				spider.Logger.Error(err)
+			}
+			// prettyJSON, err := json.MarshalIndent(res, "", "  ")
+			wappJson, err := json.Marshal(res)
+			if err != nil {
+				spider.Logger.Error(err)
+			}
+			result.Wapp = string(wappJson)
+		}
+
+		// check for bitcoins and email addresses
+		emails := spider.regexEmail.FindAllString(body, -1)
+		for _, email := range emails {
+			result.PageAttributes = append(result.PageAttributes, PageAttribute{Name: "email", Value: email})
+			result.PageProperties = append(result.PageProperties, PageProperty{Name: "email", Value: email})
+		}
+		bitcoins := spider.regexBitcoin.FindAllString(body, -1)
+		for _, bitcoin := range bitcoins {
+			result.PageAttributes = append(result.PageAttributes, PageAttribute{Name: "bitcoin", Value: bitcoin})
+			result.PageProperties = append(result.PageProperties, PageProperty{Name: "bitcoin", Value: bitcoin})
+		}
+
+		onions := spider.regexBitcoin.FindAllString(body, -1)
+		for _, onion := range onions {
+			spider.jobs <- Job{onion}
+		}
+
+		// keywords
+		var topicsProse []string
+		doc, _ := prose.NewDocument(text)
+		for _, ent := range doc.Entities() {
+			spider.Logger.Debugf("[entity] ent.Text=%s, ent.Label=%s", ent.Text, ent.Label)
+			topic := ent.Text
+			if len(topic) > 16 {
+				continue
+			}
+			if topic != "" {
+				topicsProse = append(topicsProse, topic)
+			}
+		}
+		topicsProse = removeDuplicates(topicsProse)
+		result.Keywords = strings.Join(topicsProse, ",")
 
 		var pageExists PageInfo
 		if !spider.rdbms.Where("fingerprint = ?", fingerprint).First(&pageExists).RecordNotFound() {
@@ -489,6 +529,7 @@ func (spider *Spider) getCollector() (*colly.Collector, error) {
 		}
 
 		// index to manticoresearch
+		// how to cope with the new manticore json api ?!
 
 		// index to elasticsearch
 		err = spider.pageStorage.SavePage(*result)
@@ -613,6 +654,25 @@ func (spider *Spider) crawl(seed string, input bool) {
 		spider.Logger.Debugf("Collector could not start, err %s", err)
 	}
 	c.Wait()
+}
+
+func removeDuplicates(elements []string) []string {
+	// Use map to record duplicates as we find them.
+	encountered := map[string]bool{}
+	result := []string{}
+
+	for v := range elements {
+		if encountered[elements[v]] == true {
+			// Do not add duplicate.
+		} else {
+			// Record this element as an encountered element.
+			encountered[elements[v]] = true
+			// Append to result slice.
+			result = append(result, elements[v])
+		}
+	}
+	// Return the new slice.
+	return result
 }
 
 func strToMD5(text string) string {
