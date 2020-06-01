@@ -10,7 +10,7 @@ services:
     - 9312:9312
     - 9308:9308
     volumes:
-    - ./.config/manticore/tor-spider.sql:/opt/tor-spider/tor-spider.sql
+    # - ./.config/manticore/tor-spider.sql:/opt/tor-spider/tor-spider.sql
     - ./.config/manticore/manticore.conf:/etc/sphinxsearch/sphinx.conf
     - manticore-data:/var/lib/manticore/data
     networks:
