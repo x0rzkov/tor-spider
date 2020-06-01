@@ -33,6 +33,7 @@ func main() {
 	dumpUrls := flag.Bool("u", false, "dump urls from oniontree")
 	fixDomain := flag.Bool("f", false, "fix missing domains")
 	isAdmin := flag.Bool("a", false, "start webui admin")
+	indexManticore := flag.Bool("i", false, "index to manticore")
 
 	flag.Parse()
 
@@ -102,6 +103,40 @@ func main() {
 			csvDataset.Flush()
 		}
 		os.Exit(1)
+	}
+
+	if *indexManticore {
+		var pageInfos []*PageInfo
+		db.Where("status = ?", "200").Find(&pageInfos)
+		for _, pageInfo := range pageInfos {
+			var deletedAt time.Time
+			if pageInfo.Model.DeletedAt == nil {
+				deletedAt = time.Date(2001, time.January, 01, 01, 0, 0, 0, time.UTC)
+			} else {
+				deletedAt = *pageInfo.Model.DeletedAt
+			}
+
+			query := fmt.Sprintf(`REPLACE into rt_tor_sider (id,created_at,updated_at,deleted_at,url,summary,title,is_home_page,status,language,domain,category,wapp,page_properties) VALUES ('%d','%d','%d','%d','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s')`,
+				pageInfo.Model.ID,
+				pageInfo.Model.CreatedAt.Unix(),
+				pageInfo.Model.UpdatedAt.Unix(),
+				deletedAt.Unix(),
+				pageInfo.URL,
+				escape(pageInfo.Summary),
+				escape(pageInfo.Title),
+				pageInfo.IsHomePage,
+				pageInfo.Status,
+				pageInfo.Category,
+				pageInfo.Wapp,
+				pageInfo.PageProperties,
+			)
+			fmt.Println(query)
+			res, err := cl.Exec(query)
+			if err != nil {
+				panic(err)
+			}
+			fmt.Println(res)
+		}
 	}
 
 	// Setting up storage
@@ -262,4 +297,45 @@ func readLines(path string) ([]string, error) {
 		lines = append(lines, scanner.Text())
 	}
 	return lines, scanner.Err()
+}
+
+func escape(sql string) string {
+	dest := make([]byte, 0, 2*len(sql))
+	var escape byte
+	for i := 0; i < len(sql); i++ {
+		c := sql[i]
+
+		escape = 0
+
+		switch c {
+		case 0: /* Must be escaped for 'mysql' */
+			escape = '0'
+			break
+		case '\n': /* Must be escaped for logs */
+			escape = 'n'
+			break
+		case '\r':
+			escape = 'r'
+			break
+		case '\\':
+			escape = '\\'
+			break
+		case '\'':
+			escape = '\''
+			break
+		case '"': /* Better safe than sorry */
+			escape = '"'
+			break
+		case '\032': /* This gives problems on Win32 */
+			escape = 'Z'
+		}
+
+		if escape != 0 {
+			dest = append(dest, '\\', escape)
+		} else {
+			dest = append(dest, c)
+		}
+	}
+
+	return string(dest)
 }
