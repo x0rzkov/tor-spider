@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 	"errors"
+	"math/rand"
+	"time"
 
 	log "github.com/sirupsen/logrus"
 	"go.mongodb.org/mongo-driver/bson"
@@ -45,21 +47,26 @@ func (s *MongoJobsStorage) GetJob() (Job, error) {
 	var job Job
 	ctx := context.Background()
 
-	// ref.
-	// pipeline := []bson.D{bson.D{{"$sample", bson.D{{"size", 10}}}}}
-	// pipeline := []bson.E{bson.E{"$sample", bson.E{"size", 10}}}
-	// collection.Aggregate(context.TODO(), pipeline)
-	/*
-		// http://bdadam.com/blog/finding-a-random-document-in-mongodb.html
-		var query = {
-		    state: 'OK',
-		    rnd: {
-		        $gte: Math.random()
-		    }
-		}
+	// ref
+	// https://github.com/St0iK/go-quote-bot/blob/master/dao/quotes_dao.go
+	rand.Seed(time.Now().UnixNano())
 
-		collection.FindOne(query)
+	/*
+		// count documents
+		c, _ := collection.CountDocuments(ctx, bson.D{}, nil)
+
+		// get random doc
+		random := rand.Int63n(c-1) + 1
+		findOptions := options.Find()
+		findOptions.SetLimit(1)
+		findOptions.SetSkip(random)
+
+		cur, err := s.collection.Find(ctx, bson.D{}, findOptions)
+		if err != nil {
+			log.Fatal(err)
+		}
 	*/
+
 	err := s.collection.FindOne(ctx, bson.D{}).Decode(&job)
 	if err != nil {
 		if errors.Is(err, mongo.ErrNoDocuments) {

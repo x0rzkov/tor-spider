@@ -50,6 +50,7 @@ require (
 	github.com/temoto/robotstxt v1.1.1 // indirect
 	github.com/theplant/cldr v0.0.0-20190423050709-9f76f7ce4ee8 // indirect
 	github.com/tsak/concurrent-csv-writer v0.0.0-20200206204244-84054e222625 // indirect
+	github.com/urandom/text-summary v0.0.0-20150104142726-3e2dd4c46c53 // indirect
 	github.com/velebak/colly-sqlite3-storage v0.0.0-20190425160637-c76683d5163d
 	github.com/withmandala/go-log v0.1.0
 	go.mongodb.org/mongo-driver v1.3.3

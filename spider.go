@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	// "https://github.com/rsc/pdf"
 	"github.com/PuerkitoBio/goquery"
 	"github.com/abadojack/whatlanggo"
 	"github.com/gin-gonic/gin"
@@ -28,6 +29,7 @@ import (
 	"github.com/qor/qor/utils"
 	"github.com/qor/validations"
 	log "github.com/sirupsen/logrus"
+	"github.com/urandom/text-summary/summarize"
 	"gopkg.in/jdkato/prose.v2"
 
 	"github.com/samirettali/tor-spider/pkg/articletext"
@@ -49,6 +51,7 @@ type PageInfo struct {
 	URL            string          `gorm:"index:url"`
 	Body           string          `gorm:"type:longtext; CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci" sql:"type:longtext"`
 	Summary        string          `gorm:"type:longtext; CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci" sql:"type:longtext"`
+	KeyPoints      string          `gorm:"type:longtext; CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci" sql:"type:longtext"`
 	Title          string          `gorm:"type:longtext; CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci" sql:"type:longtext"`
 	Keywords       string          `gorm:"type:longtext; CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci" sql:"type:longtext"`
 	Category       string          `gorm:"index:category"`
@@ -449,9 +452,14 @@ func (spider *Spider) getCollector() (*colly.Collector, error) {
 			spider.Logger.Error(err)
 		}
 
+		// extract key points
+		s := summarize.NewFromString(title, text)
+		keyPoints := s.KeyPoints()
+
 		result := &PageInfo{
 			URL:         r.Request.URL.String(),
 			Summary:     text,
+			KeyPoints:   strings.Join(keyPoints, "|"),
 			Domain:      u.Domain,
 			Status:      r.StatusCode,
 			Title:       title,

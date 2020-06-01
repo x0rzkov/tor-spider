@@ -2,10 +2,12 @@ package main
 
 import (
 	"bufio"
+	"database/sql"
 	"flag"
 	"fmt"
 	"os"
 	"regexp"
+	"time"
 
 	"github.com/gocolly/redisstorage"
 	"github.com/jinzhu/gorm"
@@ -24,16 +26,17 @@ import (
 
 func main() {
 	blacklistFile := flag.String("b", "", "blacklist file")
-	depth := flag.Int("d", 3, "depth of each collector")
+	depth := flag.Int("d", 2, "depth of each collector")
 	verbose := flag.Bool("v", false, "verbose")
 	debug := flag.Bool("x", false, "debug")
-	numWorkers := flag.Int("w", 64, "number of workers")
+	numWorkers := flag.Int("w", 12, "number of workers")
 	parallelism := flag.Int("p", 32, "parallelism of workers")
 	oniontree := flag.Bool("o", false, "import oniontree")
 	dumpUrls := flag.Bool("u", false, "dump urls from oniontree")
 	fixDomain := flag.Bool("f", false, "fix missing domains")
-	isAdmin := flag.Bool("a", false, "start webui admin")
+	// isAdmin := flag.Bool("a", false, "start webui admin")
 	indexManticore := flag.Bool("i", false, "index to manticore")
+	searchManticore := flag.String("s", "", "search manticore index")
 
 	flag.Parse()
 
@@ -105,38 +108,61 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Mantincore for indexing content
+	cl, _, err := initSphinx("127.0.0.1", 9312)
+	checkErr(err)
+
+	if *searchManticore != "" {
+		fmt.Println("query:", *searchManticore)
+		res2, err2 := cl.Query(*searchManticore, "rt_tor_spider")
+		// curl -X POST 'http://127.0.0.1:9308/sql' -d 'mode=raw&query=CREATE TABLE testrt ( title text, content text, gid integer)'
+		// curl -X POST 'http://127.0.0.1:9308/json/insert' -d'{"index":"rt_tor_spider","id":1,"doc":{"title":"Hello","content":"world","gid":1}}' | jq .
+		// curl -X POST 'http://127.0.0.1:9308/json/search' -d '{"index":"rt_tor_spider","query":{"match":{"*":"dataset"}}}' | jq .
+		pp.Println(res2, err2)
+		os.Exit(1)
+	}
+
 	if *indexManticore {
+
+		cl, err := sql.Open("mysql", "@tcp(127.0.0.1:9306)/")
+		if err != nil {
+			panic(err)
+		}
+
 		var pageInfos []*PageInfo
 		db.Where("status = ?", "200").Find(&pageInfos)
 		for _, pageInfo := range pageInfos {
 			var deletedAt time.Time
-			if pageInfo.Model.DeletedAt == nil {
+			if pageInfo.DeletedAt == nil {
 				deletedAt = time.Date(2001, time.January, 01, 01, 0, 0, 0, time.UTC)
 			} else {
-				deletedAt = *pageInfo.Model.DeletedAt
+				deletedAt = *pageInfo.DeletedAt
 			}
 
-			query := fmt.Sprintf(`REPLACE into rt_tor_sider (id,created_at,updated_at,deleted_at,url,summary,title,is_home_page,status,language,domain,category,wapp,page_properties) VALUES ('%d','%d','%d','%d','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s')`,
-				pageInfo.Model.ID,
-				pageInfo.Model.CreatedAt.Unix(),
-				pageInfo.Model.UpdatedAt.Unix(),
+			query := fmt.Sprintf(`REPLACE into rt_tor_spider (id,created_at,updated_at,deleted_at,url,summary,title,is_home_page,status,language,domain,category,wapp,page_properties) VALUES ('%d','%d','%d','%d','%s','%s','%s','%t','%d','%s','%s','%s','%s','%s')`,
+				pageInfo.ID,
+				pageInfo.CreatedAt.Unix(),
+				pageInfo.UpdatedAt.Unix(),
 				deletedAt.Unix(),
-				pageInfo.URL,
+				escape(pageInfo.URL),
 				escape(pageInfo.Summary),
 				escape(pageInfo.Title),
 				pageInfo.IsHomePage,
 				pageInfo.Status,
+				pageInfo.Language,
+				pageInfo.Domain,
 				pageInfo.Category,
 				pageInfo.Wapp,
 				pageInfo.PageProperties,
 			)
-			fmt.Println(query)
-			res, err := cl.Exec(query)
+			//fmt.Println(query)
+			_, err := cl.Exec(query)
 			if err != nil {
-				panic(err)
+				log.Warnln("index err", err)
 			}
-			fmt.Println(res)
+			// pp.Println(res)
 		}
+		os.Exit(1)
 	}
 
 	// Setting up storage
@@ -155,10 +181,6 @@ func main() {
 		Prefix:   "0",
 	}
 	// defer visitedStorage.Client.Close()
-
-	// Mantincore for indexing content
-	cl, _, err := initSphinx("127.0.0.1", 9312)
-	check(err)
 
 	// Elastic for page saving
 	elasticURI, ok := os.LookupEnv("ELASTIC_URI")
@@ -218,7 +240,8 @@ func main() {
 		log.Fatal(err)
 	}
 
-	onionPatternRegexp, err := regexp.Compile(`(?:https?://)?(?:www)?(\S*?\.onion)\b`)
+	// (?:https?://)?(?:www)?(\S*?\.onion)\b
+	onionPatternRegexp, err := regexp.Compile(`(?:https?\:\/\/)?[\w\-\.]+\.onion`)
 	if err != nil {
 		log.Fatal(err)
 	}
