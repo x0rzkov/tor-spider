@@ -32,6 +32,7 @@ import (
 
 	"github.com/samirettali/tor-spider/pkg/articletext"
 	"github.com/samirettali/tor-spider/pkg/gowap"
+	"github.com/samirettali/tor-spider/pkg/manticore"
 )
 
 // Job is a struct that represents a job
@@ -141,6 +142,7 @@ type Spider struct {
 	regexBitcoin *regexp.Regexp
 	regexEmail   *regexp.Regexp
 
+	manticore   manticore.Client
 	rdbms       *gorm.DB
 	storage     storage.Storage
 	jobsStorage JobsStorage
@@ -168,7 +170,9 @@ func (spider *Spider) Init() error {
 	spider.jobs = make(chan Job, spider.numWorkers*spider.parallelism*100)
 	spider.results = make(chan PageInfo, 100)
 	spider.startWebServer()
+	//if spider.admin {
 	spider.startWebAdmin()
+	//}
 
 	if err := spider.startJobsStorage(); err != nil {
 		return err
@@ -534,6 +538,7 @@ func (spider *Spider) getCollector() (*colly.Collector, error) {
 
 		// index to manticoresearch
 		// how to cope with the new manticore json api ?!
+		// curl -X POST 'http://127.0.0.1:9308/json/insert' -d'{"index":"testrt","id":1,"doc":{"title":"Hello","content":"world","gid":1}}'
 
 		// index to elasticsearch
 		err = spider.pageStorage.SavePage(*result)

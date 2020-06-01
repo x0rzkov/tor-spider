@@ -19,6 +19,7 @@ import (
 	ccsv "github.com/tsak/concurrent-csv-writer"
 
 	"github.com/samirettali/tor-spider/pkg/gowap"
+	"github.com/samirettali/tor-spider/pkg/manticore"
 )
 
 func main() {
@@ -31,6 +32,7 @@ func main() {
 	oniontree := flag.Bool("o", false, "import oniontree")
 	dumpUrls := flag.Bool("u", false, "dump urls from oniontree")
 	fixDomain := flag.Bool("f", false, "fix missing domains")
+	isAdmin := flag.Bool("a", false, "start webui admin")
 
 	flag.Parse()
 
@@ -119,6 +121,10 @@ func main() {
 	}
 	// defer visitedStorage.Client.Close()
 
+	// Mantincore for indexing content
+	cl, _, err := initSphinx("127.0.0.1", 9312)
+	check(err)
+
 	// Elastic for page saving
 	elasticURI, ok := os.LookupEnv("ELASTIC_URI")
 	if !ok {
@@ -189,6 +195,7 @@ func main() {
 
 	spider := &Spider{
 		rdbms:        db,
+		manticore:    cl,
 		storage:      visitedStorage,
 		jobsStorage:  jobsStorage,
 		pageStorage:  pageStorage,
@@ -224,6 +231,22 @@ func main() {
 	}
 
 	spider.Start()
+}
+
+func checkErr(err error) {
+	if err != nil {
+		log.Fatalf("error: %v", err)
+	}
+}
+
+func initSphinx(host string, port uint16) (manticore.Client, bool, error) {
+	cl := manticore.NewClient()
+	cl.SetServer(host, port)
+	status, err := cl.Open()
+	if err != nil {
+		return cl, status, err
+	}
+	return cl, status, nil
 }
 
 func readLines(path string) ([]string, error) {
